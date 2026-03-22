@@ -81,7 +81,7 @@ foreach ($item in $AllItems) {
             ProjectFolder = $projFolder
             GDB_Name      = $item.Name
             GDB_Path      = $item.FullName
-            ParentFolder  = $item.DirectoryName
+            ParentFolder  = (Split-Path $item.FullName -Parent)
             LastModified  = $item.LastWriteTime.ToString("yyyy-MM-dd")
             Notes         = "Run: ogrinfo -al -so on this GDB to list feature classes"
         })
