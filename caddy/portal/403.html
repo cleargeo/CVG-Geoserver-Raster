@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>403 — Access Restricted | CVG Raster Services</title>
+  <style>
+    :root {
+      --bg: #0b1120; --card: #111827; --border: #1f2d45;
+      --amber: #f59e0b; --txt: #f1f5f9; --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg); color: var(--txt);
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .card {
+      background: var(--card); border: 1px solid #92400e;
+      border-radius: 12px; padding: 48px 40px; max-width: 520px;
+      width: 100%; text-align: center;
+      box-shadow: 0 0 60px rgba(245,158,11,0.08);
+    }
+    .icon { font-size: 3rem; margin-bottom: 20px; }
+    .code { font-size: 4rem; font-weight: 900; color: var(--amber); line-height: 1; margin-bottom: 8px; }
+    h1 { font-size: 1.2rem; font-weight: 700; margin-bottom: 12px; }
+    p { font-size: 0.88rem; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+    .badge {
+      display: inline-block;
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3);
+      color: var(--amber); font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 4px 14px; border-radius: 20px; margin-bottom: 28px;
+    }
+    a.btn {
+      display: inline-block; background: #1d4ed8; color: #fff;
+      padding: 10px 24px; border-radius: 6px; font-size: 0.84rem;
+      font-weight: 600; text-decoration: none; margin-top: 4px;
+      transition: background 0.15s;
+    }
+    a.btn:hover { background: #2563eb; }
+    .footer { font-size: 0.74rem; color: #475569; margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔒</div>
+    <div class="code">403</div>
+    <div class="badge">CVG LAN Access Required</div>
+    <h1>Access Restricted</h1>
+    <p>
+      The GeoServer Admin UI and REST API are restricted to the
+      <strong>CVG internal network (10.10.10.0/24)</strong>.<br/>
+      This request originated from an external or unauthorized network.
+    </p>
+    <p>
+      OGC service endpoints (WMS, WCS, WMTS, GWC) remain accessible externally.<br/>
+      Contact <a href="mailto:azelenski@clearviewgeographic.com" style="color:#60a5fa">azelenski@clearviewgeographic.com</a> for access questions.
+    </p>
+    <a class="btn" href="/">← Back to Services Portal</a>
+  </div>
+  <div class="footer">&copy; 2018–2026 Clearview Geographic LLC · raster.cleargeo.tech</div>
+</body>
+</html>

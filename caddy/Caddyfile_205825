@@ -1,0 +1,407 @@
+# =============================================================================
+# CVG GeoServer Raster — Caddyfile
+# (c) Clearview Geographic, LLC — Proprietary
+# Target: raster.cleargeo.tech  →  geoserver-raster:8080
+#         Portal served from:  /srv/portal/index.html
+# =============================================================================
+# Requirements before first start:
+#   1. DNS A record:  raster.cleargeo.tech  →  public IP (see docker-compose.prod.yml)
+#   2. Ports 80 + 443 open inbound (FortiGate VIP or VM451 already handles 443)
+#   3. Email below kept current for Let's Encrypt expiry notices
+#   4. Mount ./caddy/portal → /srv/portal (done in docker-compose.prod.yml)
+# =============================================================================
+
+{
+    email azelenski@clearviewgeographic.com
+
+    # Use Let's Encrypt only — disables ZeroSSL fallback
+    # Switch to staging URL to test without LE rate limits:
+    # acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+    acme_ca https://acme-v02.api.letsencrypt.org/directory
+
+    # Trust VM451 Caddy reverse proxy (10.10.10.200) for X-Forwarded-For
+    # so that remote_ip matchers see real client IPs, not the proxy IP.
+    servers {
+        trusted_proxies static 10.10.10.200
+    }
+}
+
+# =============================================================================
+# HTTP block — handles plain-HTTP requests forwarded by VM451 Caddy.
+# VM451 terminates TLS for raster.cleargeo.tech and proxies HTTP here.
+# Without this block Caddy auto-redirects HTTP→HTTPS, causing a redirect loop.
+# =============================================================================
+http://raster.cleargeo.tech {
+
+    # Portal landing page
+    handle / {
+        root * /srv/portal
+        file_server
+    }
+
+    handle /portal/* {
+        uri strip_prefix /portal
+        root * /srv/portal
+        file_server
+    }
+
+    handle /health {
+        rewrite * /geoserver/ows
+        reverse_proxy geoserver-raster:8080 {
+            header_up X-Forwarded-For   {remote_host}
+            header_up X-Forwarded-Proto https
+        }
+    }
+
+    # Admin UI — LAN only (real IP resolved via servers.trusted_proxies above)
+    route /geoserver/web/* {
+        @blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @blocked {
+            root * /srv/portal
+            rewrite * /403.html
+            file_server
+            header Cache-Control "no-store"
+        }
+        reverse_proxy geoserver-raster:8080
+    }
+
+    # REST API — LAN only
+    route /geoserver/rest/* {
+        @blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @blocked {
+            respond `{"error":"GeoServer REST API accessible from CVG LAN only","status":403}` 403 {
+                close
+            }
+        }
+        reverse_proxy geoserver-raster:8080
+    }
+
+    # GWC REST — LAN only
+    route /geoserver/gwc/rest/* {
+        @blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @blocked {
+            respond `{"error":"GeoWebCache REST accessible from CVG LAN only","status":403}` 403 {
+                close
+            }
+        }
+        reverse_proxy geoserver-raster:8080
+    }
+
+    # WPS — LAN only (mirrors HTTPS block protection)
+    route /geoserver/wps* {
+        @wps-blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @wps-blocked {
+            respond `{"error":"WPS geoprocessing accessible from CVG LAN only","status":403}` 403 {
+                close
+            }
+        }
+        reverse_proxy geoserver-raster:8080
+    }
+
+    handle /status {
+        respond "OK" 200
+    }
+
+    # OWS / GWC — public GIS endpoints (catch-all — must come after all handle blocks)
+    reverse_proxy geoserver-raster:8080 {
+        header_up X-Forwarded-For   {remote_host}
+        header_up X-Real-IP         {remote_host}
+        header_up X-Forwarded-Proto https
+        header_up Host              {host}
+        transport http {
+            dial_timeout            30s
+            response_header_timeout 120s
+            read_timeout            300s
+            write_timeout           300s
+        }
+        flush_interval -1
+        health_uri      /geoserver/ows
+        health_interval 30s
+        health_timeout  10s
+    }
+
+    handle_errors 502 503 504 {
+        root * /srv/portal
+        rewrite * /index.html
+        file_server
+        header Cache-Control "no-store"
+    }
+
+    # CORS
+    @options method OPTIONS
+    handle @options {
+        header Access-Control-Allow-Origin  "*"
+        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, Accept"
+        header Access-Control-Max-Age       "86400"
+        respond 204
+    }
+    header Access-Control-Allow-Origin "*"
+
+    encode gzip zstd
+
+    log {
+        output file /var/log/caddy/geoserver-raster-http.log {
+            roll_size     50MiB
+            roll_keep     7
+        }
+        format json
+    }
+}
+
+# ── GeoServer Raster public endpoint (HTTPS — direct FortiGate VIP route) ────
+raster.cleargeo.tech {
+
+    # ── Portal landing page — served from /srv/portal ─────────────────────────
+    # The root "/" and "/portal" serve the CVG proprietary data access portal.
+    # Any path NOT under /geoserver/* is handled by the file server first.
+    # This gives a professional branded entry point instead of the raw GeoServer UI.
+    handle / {
+        root * /srv/portal
+        file_server
+    }
+
+    # Serve portal assets directory (CSS, JS, images if separate files are added)
+    handle /portal/* {
+        uri strip_prefix /portal
+        root * /srv/portal
+        file_server
+    }
+
+    # Health check endpoint — lightweight status for uptime monitoring tools
+    # Rewrites /health → /geoserver/ows and proxies to GeoServer.
+    # GeoServer OWS dispatcher returns a tiny page in <100ms.
+    handle /health {
+        rewrite * /geoserver/ows
+        reverse_proxy geoserver-raster:8080 {
+            header_up X-Forwarded-For   {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # ── Admin UI — restrict to CVG LAN + Proxmox network only ────────────────
+    # The GeoServer admin web UI should NEVER be exposed to the public internet.
+    route /geoserver/web/* {
+        @blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @blocked {
+            root * /srv/portal
+            rewrite * /403.html
+            file_server
+            header Cache-Control "no-store"
+        }
+        reverse_proxy geoserver-raster:8080
+    }
+
+    # ── REST API — restrict to CVG LAN only ──────────────────────────────────
+    # The GeoServer REST API allows layer/store/workspace management.
+    # Exposing it publicly is a critical security risk — LAN-only.
+    route /geoserver/rest/* {
+        @blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @blocked {
+            respond `{"error":"GeoServer REST API accessible from CVG LAN only","status":403}` 403 {
+                close
+            }
+        }
+        reverse_proxy geoserver-raster:8080
+    }
+
+    # ── GWC REST — restrict tile cache management to LAN ─────────────────────
+    route /geoserver/gwc/rest/* {
+        @blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @blocked {
+            respond `{"error":"GeoWebCache REST accessible from CVG LAN only","status":403}` 403 {
+                close
+            }
+        }
+        reverse_proxy geoserver-raster:8080
+    }
+
+    # ── Static status probe ───────────────────────────────────────────────────
+    # Returns 200 immediately without touching GeoServer upstream.
+    # Used by FortiGate health monitors, uptime checkers, and load balancers.
+    handle /status {
+        respond "OK" 200
+    }
+
+    # ── WPS — restrict to CVG LAN only ───────────────────────────────────────
+    # WPS Execute jobs consume significant CPU and memory (raster analysis,
+    # map algebra, coverage resampling). Never expose WPS to anonymous internet.
+    route /geoserver/wps* {
+        @wps-blocked not remote_ip 10.10.10.0/24 10.10.20.0/24 127.0.0.1/8
+        handle @wps-blocked {
+            respond `{"error":"WPS geoprocessing accessible from CVG LAN only","status":403}` 403 {
+                close
+            }
+        }
+        reverse_proxy geoserver-raster:8080 {
+            header_up X-Forwarded-For   {remote_host}
+            header_up X-Real-IP         {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host              {host}
+            transport http {
+                dial_timeout            30s
+                # WPS jobs can take minutes — generous header + body timeouts
+                response_header_timeout 300s
+                read_timeout            600s
+                write_timeout           600s
+            }
+            flush_interval -1
+        }
+    }
+
+    # ── OGC API (Features / Tiles / Coverages) — public JSON REST ────────────
+    # GeoServer OGC API dispatcher at /geoserver/ogc/*.
+    # Serves JSON-LD feature collections, coverage metadata, tile matrix sets.
+    # Public endpoint — results depend on GeoServer layer security rules.
+    route /geoserver/ogc/* {
+        reverse_proxy geoserver-raster:8080 {
+            header_up X-Forwarded-For   {remote_host}
+            header_up X-Real-IP         {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Host              {host}
+            transport http {
+                dial_timeout            30s
+                response_header_timeout 60s
+                read_timeout            120s
+                write_timeout           120s
+            }
+            flush_interval -1
+        }
+    }
+
+    # ── OWS / GWC — public GIS service endpoints (catch-all) ──────────────────
+    reverse_proxy geoserver-raster:8080 {
+        # Pass real client IP so GeoServer access logs + rate limiting work
+        header_up X-Forwarded-For   {remote_host}
+        header_up X-Real-IP         {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up Host              {host}
+
+        # Timeouts tuned for raster service:
+        #   response_header: 120s — WMS GetMap (large mosaic tile renders)
+        #   read/write:      300s — WCS GetCoverage (full-resolution raster downloads)
+        transport http {
+            dial_timeout            30s
+            response_header_timeout 120s
+            read_timeout            300s
+            write_timeout           300s
+        }
+
+        # Flush tile responses immediately — don't buffer map tiles
+        # Avoids TTFB degradation for WMS/WMTS tile consumers
+        flush_interval -1
+
+        # Lightweight health check — /geoserver/ows with no params returns a tiny
+        # dispatcher page in <100ms vs ~300KB WMS GetCapabilities XML
+        health_uri      /geoserver/ows
+        health_interval 30s
+        health_timeout  10s
+    }
+
+    # ── Error handling — serve portal when GeoServer is unreachable ───────────
+    # Catches 502/503/504 from the upstream GeoServer (restarting, OOM, etc.)
+    # and returns the portal landing page instead of a bare Caddy error screen.
+    handle_errors 502 503 504 {
+        root * /srv/portal
+        rewrite * /index.html
+        file_server
+        header Cache-Control "no-store"
+    }
+
+    # ── Cache-Control for OGC capability documents ────────────────────────────
+    # GetCapabilities responses are expensive to generate but change infrequently.
+    # CDN/proxy layers and QGIS/ArcGIS clients can cache these safely for 5 min.
+    @capabilities {
+        path_regexp cap [Rr]equest=(?i)GetCapabilities
+    }
+    header @capabilities {
+        Cache-Control "public, max-age=300, stale-while-revalidate=60"
+        Vary          "Accept-Encoding, Origin"
+    }
+
+    # ── Security headers ──────────────────────────────────────────────────────
+    header {
+        # Allow iframes from same origin only (GeoServer layerpreview uses iframes)
+        X-Frame-Options            "SAMEORIGIN"
+        X-Content-Type-Options     "nosniff"
+        # HSTS — 1 year; only enable after confirming HTTPS is stable
+        Strict-Transport-Security  "max-age=31536000; includeSubDomains; preload"
+        Referrer-Policy            "strict-origin-when-cross-origin"
+        # XSS protection for older browsers (belt-and-suspenders alongside CSP)
+        X-XSS-Protection           "1; mode=block"
+        # CSP: GeoServer admin UI needs inline scripts/styles; tile preview uses iframes
+        # Portal page uses inline CSS/JS (self-contained single file)
+        Content-Security-Policy    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; frame-ancestors 'self'; object-src 'none'; connect-src 'self' https://raster.cleargeo.tech"
+        # Camera/mic/geo not needed by GIS tile/WCS consumers
+        Permissions-Policy         "geolocation=(), camera=(), microphone=(), payment=()"
+        # Remove server identity header
+        -Server
+        -X-Powered-By
+    }
+
+    # ── CORS — allow GIS clients to consume WMS/WCS/WMTS ─────────────────────
+    # Needed for: QGIS web viewer, ArcGIS Online, Leaflet/OpenLayers web maps,
+    #             CVG wizard overlay layers
+    @options {
+        method OPTIONS
+    }
+    handle @options {
+        header Access-Control-Allow-Origin  "*"
+        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, Accept"
+        header Access-Control-Max-Age       "86400"
+        respond 204
+    }
+    header Access-Control-Allow-Origin "*"
+
+    # ── GWC tile caching — allow browsers/CDNs to cache rendered tiles ────────
+    # GeoWebCache tile endpoints return static PNG/JPEG tiles keyed by bbox+zoom.
+    # 24h browser cache + stale-while-revalidate reduces repeated tile fetches.
+    @gwc-tiles {
+        path /geoserver/gwc/service/*
+    }
+    header @gwc-tiles {
+        Cache-Control "public, max-age=86400, stale-while-revalidate=3600"
+        Vary          "Accept-Encoding"
+    }
+
+    # ── Dynamic OWS — never cache live GIS query responses ────────────────────
+    # WMS/WCS GetMap, WCS GetCoverage, WPS Execute, and OGC API feature responses
+    # must always return fresh data — never serve stale cached output.
+    @ows-dynamic {
+        path /geoserver/ows* /geoserver/wms* /geoserver/wcs* /geoserver/wps* /geoserver/ogc/*
+    }
+    header @ows-dynamic Cache-Control "no-store, no-cache, must-revalidate"
+
+    # ── REST API — no-cache for management operations ─────────────────────────
+    @rest-api {
+        path /geoserver/rest/*
+    }
+    header @rest-api {
+        Cache-Control "no-store"
+        X-Content-Type-Options "nosniff"
+    }
+
+    # ── Request body limits ───────────────────────────────────────────────────
+    # WCS GetCoverage POST requests can carry large filter/geometry params.
+    # 200 MB ceiling covers the largest legitimate GetCoverage requests.
+    request_body {
+        max_size 200MB
+    }
+
+    # ── Compression ───────────────────────────────────────────────────────────
+    # WMS XML capability responses + WCS metadata compress well.
+    # PNG/JPEG tiles are already compressed — Caddy skips those automatically.
+    # Portal HTML compresses well too.
+    encode gzip zstd
+
+    # ── Structured access log (JSON → ELK/Prometheus-compatible) ─────────────
+    log {
+        output file /var/log/caddy/geoserver-raster-access.log {
+            roll_size     100MiB
+            roll_keep     14
+            roll_keep_for 336h    # 14 days
+        }
+        format json
+    }
+}

@@ -1,0 +1,33 @@
+# ── Exclude WAR file — only bin.zip is used for standalone Jetty build ────────
+geoserver-2.28.3-war.zip
+
+# ── Plugin directory: ZIPs are INCLUDED (COPY plugins/ in Dockerfile) ─────────
+# Only exclude non-ZIP files from plugins/ to keep build context small
+plugins/*.md
+plugins/*.txt
+
+# ── Docs and deploy scripts (not needed in image) ─────────────────────────────
+*.md
+*.sh
+*.bat
+*.ps1
+
+# ── Version control ────────────────────────────────────────────────────────────
+.git
+.gitignore
+.github
+.gitattributes
+
+# ── Python artifacts ───────────────────────────────────────────────────────────
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+htmlcov
+.coverage
+
+# ── Caddy config — mounted as volume at runtime, not baked into image ─────────
+caddy/
+
+# ── Local dev data mounts ──────────────────────────────────────────────────────
+data/

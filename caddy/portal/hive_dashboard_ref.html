@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>HIVE0 — CVG Platform Operations Center</title>
+  <style>
+    /* ── Design tokens ─────────────────────────────────────── */
+    :root {
+      --bg:           #080f1a;
+      --bg-card:      #0d1929;
+      --bg-card-alt:  #111f33;
+      --border:       #1a2d47;
+      --border-light: #1e3354;
+      --cvg-navy:     #060d1a;
+      --cvg-blue:     #1d4ed8;
+      --cvg-blue-lt:  #2563eb;
+      --accent:       #38bdf8;
+      --accent-glow:  rgba(56,189,248,0.15);
+      --green:        #22c55e;
+      --green-dim:    #166534;
+      --yellow:       #eab308;
+      --red:          #ef4444;
+      --text:         #e2e8f0;
+      --text-muted:   #64748b;
+      --text-dim:     #94a3b8;
+      --gold:         #f59e0b;
+      --purple:       #a855f7;
+      --teal:         #14b8a6;
+      --radius:       8px;
+      --radius-lg:    12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Ticker ─────────────────────────────────────────────── */
+    .ticker {
+      background: #020a14;
+      border-bottom: 1px solid var(--border);
+      padding: 6px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .ticker-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); flex-shrink: 0; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .ticker span { color: var(--accent); }
+    .ticker-clock { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+
+    /* ── Nav ────────────────────────────────────────────────── */
+    nav {
+      background: rgba(8,15,26,.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      gap: 8px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-right: 24px;
+      text-decoration: none;
+    }
+    .nav-logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--cvg-blue), var(--accent));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; color: #fff; letter-spacing: -.5px;
+    }
+    .nav-title { font-size: 15px; font-weight: 700; color: var(--text); }
+    .nav-badge {
+      background: #0c1f3a;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .nav-links { display: flex; gap: 4px; align-items: center; }
+    .nav-link {
+      padding: 6px 14px;
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all .15s;
+    }
+    .nav-link:hover { color: var(--text); background: rgba(56,189,248,.08); }
+    .nav-link.active { color: var(--accent); background: rgba(56,189,248,.12); }
+    .nav-status {
+      margin-left: auto;
+      display: flex; align-items: center; gap: 8px;
+      background: #0a1f0a;
+      border: 1px solid var(--green-dim);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 11px; font-weight: 600;
+      color: var(--green);
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+
+    /* ── Hero metrics ───────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(180deg, #060d1a 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 28px 24px 20px;
+    }
+    .hero-title { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -.4px; margin-bottom: 4px; }
+    .hero-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: border-color .2s;
+    }
+    .metric-card:hover { border-color: var(--border-light); }
+    .metric-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+    .metric-value { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .metric-value.green { color: var(--green); }
+    .metric-value.accent { color: var(--accent); }
+    .metric-value.gold { color: var(--gold); }
+    .metric-value.purple { color: var(--purple); }
+    .metric-sub { font-size: 11px; color: var(--text-muted); }
+
+    /* ── Main layout ────────────────────────────────────────── */
+    main { padding: 24px; max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+    /* ── Section ────────────────────────────────────────────── */
+    .section-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .section-label {
+      font-size: 10px; font-weight: 700; color: var(--accent);
+      text-transform: uppercase; letter-spacing: .1em;
+    }
+    .section-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .section-hr { flex: 1; height: 1px; background: var(--border); }
+    .section-action {
+      font-size: 11px; color: var(--text-muted); text-decoration: none;
+      padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+      transition: all .15s;
+    }
+    .section-action:hover { color: var(--accent); border-color: var(--border-light); }
+
+    /* ── Service grid ───────────────────────────────────────── */
+    .service-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    .service-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      text-decoration: none;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all .15s;
+      cursor: pointer;
+    }
+    .service-card:hover { border-color: var(--border-light); background: var(--bg-card-alt); transform: translateY(-1px); }
+    .service-card-top { display: flex; align-items: center; justify-content: space-between; }
+    .service-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .service-url { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+    .badge {
+      font-size: 9px; font-weight: 700; border-radius: 4px;
+      padding: 2px 6px; text-transform: uppercase; letter-spacing: .06em;
+    }
+    .badge-green { background: #052e16; color: var(--green); border: 1px solid var(--green-dim); }
+    .badge-red { background: #450a0a; color: var(--red); border: 1px solid #7f1d1d; }
+    .badge-yellow { background: #422006; color: var(--yellow); border: 1px solid #78350f; }
+    .badge-blue { background: #172554; color: #93c5fd; border: 1px solid #1e40af; }
+    .badge-purple { background: #2e1065; color: #d8b4fe; border: 1px solid #6b21a8; }
+    .badge-teal { background: #042f2e; color: var(--teal); border: 1px solid #134e4a; }
+    .badge-gray { background: #0f172a; color: var(--text-muted); border: 1px solid var(--border); }
+    .service-desc { font-size: 11px; color: var(--text-muted); }
+
+    /* ── Container table ────────────────────────────────────── */
+    .table-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #060d1a;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--bg-card-alt); }
+    td { padding: 10px 14px; font-size: 12px; color: var(--text-dim); }
+    td.name { color: var(--text); font-weight: 600; font-family: 'Courier New', monospace; font-size: 11px; }
+    td.port { font-family: 'Courier New', monospace; font-size: 11px; color: var(--accent); }
+
+    /* ── Health indicators ──────────────────────────────────── */
+    .health-dot {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600;
+    }
+    .health-dot::before {
+      content: '';
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+    }
+    .health-dot.ok::before { background: var(--green); box-shadow: 0 0 5px var(--green); }
+    .health-dot.warn::before { background: var(--yellow); }
+    .health-dot.err::before { background: var(--red); }
+    .health-dot.ok { color: var(--green); }
+    .health-dot.warn { color: var(--yellow); }
+    .health-dot.err { color: var(--red); }
+
+    /* ── Two-col layout ─────────────────────────────────────── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media(max-width:900px){ .two-col { grid-template-columns: 1fr; } }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    @media(max-width:1100px){ .three-col { grid-template-columns: 1fr 1fr; } }
+    @media(max-width:700px){ .three-col { grid-template-columns: 1fr; } }
+
+    /* ── Info card ───────────────────────────────────────────── */
+    .info-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+    }
+    .info-card h3 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .info-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .info-row:last-child { border-bottom: none; }
+    .info-key { color: var(--text-muted); }
+    .info-val { color: var(--text); font-weight: 600; }
+    .info-val.green { color: var(--green); }
+    .info-val.accent { color: var(--accent); }
+    .info-val.gold { color: var(--gold); }
+
+    /* ── Proxmox nodes ──────────────────────────────────────── */
+    .node-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+    }
+    .node-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .node-name { font-size: 14px; font-weight: 700; color: var(--text); }
+    .progress-bar { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 4px 0; }
+    .progress-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s; }
+    .progress-fill.warn { background: var(--yellow); }
+    .progress-fill.err { background: var(--red); }
+    .prog-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); }
+
+    /* ── Logs panel ─────────────────────────────────────────── */
+    .log-panel {
+      background: #030a12;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      color: var(--green);
+      max-height: 220px;
+      overflow-y: auto;
+      line-height: 1.7;
+    }
+    .log-panel .log-ts { color: var(--text-muted); }
+    .log-panel .log-info { color: var(--accent); }
+    .log-panel .log-ok { color: var(--green); }
+    .log-panel .log-err { color: var(--red); }
+    .log-panel .log-warn { color: var(--yellow); }
+
+    /* ── Refresh indicator ───────────────────────────────────── */
+    .refresh-bar {
+      position: fixed;
+      bottom: 16px; right: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 7px 14px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex; align-items: center; gap: 6px;
+      z-index: 50;
+    }
+    .spin { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Skeleton loading ───────────────────────────────────── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--border) 25%, var(--bg-card-alt) 50%, var(--border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+      border-radius: 4px;
+      height: 14px;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    /* ── Link override ──────────────────────────────────────── */
+    a { text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<!-- ── Ticker ─────────────────────────────────────────────── -->
+<div class="ticker">
+  <div class="ticker-dot"></div>
+  <span>CVG HIVE0</span>
+  PLATFORM OPERATIONS CENTER
+  &nbsp;·&nbsp; hive0.cleargeo.tech
+  &nbsp;·&nbsp; VM451 @ 10.10.10.200
+  &nbsp;·&nbsp; Proxmox CVG-QUEEN-11
+  <span class="ticker-clock" id="tick-clock">—</span>
+</div>
+
+<!-- ── Nav ────────────────────────────────────────────────── -->
+<nav>
+  <a class="nav-brand" href="/">
+    <div class="nav-logo">CG</div>
+    <div>
+      <div class="nav-title">Clearview Geographic</div>
+    </div>
+    <div class="nav-badge">⬡ HIVE0</div>
+  </a>
+  <div class="nav-links">
+    <a class="nav-link active" href="#overview">Overview</a>
+    <a class="nav-link" href="#services">Services</a>
+    <a class="nav-link" href="#containers">Containers</a>
+    <a class="nav-link" href="#geoservers">GeoServers</a>
+    <a class="nav-link" href="#proxmox">Proxmox</a>
+    <a class="nav-link" href="#gitea">Gitea</a>
+    <a class="nav-link" href="#network">Network</a>
+  </div>
+  <div class="nav-status">
+    <div class="status-dot"></div>
+    <span id="nav-status-label">All Systems Online</span>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────── -->
+<div class="hero" id="overview">
+  <div class="hero-title">Platform Operations Center</div>
+  <div class="hero-sub">Live CVG infrastructure telemetry — VM451 · 131.148.52.231 · Refreshes every 30s</div>
+  <div class="hero-metrics">
+    <div class="metric-card">
+      <div class="metric-label">Containers</div>
+      <div class="metric-value green" id="m-containers">—</div>
+      <div class="metric-sub" id="m-containers-sub">Loading…</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Platform Uptime</div>
+      <div class="metric-value accent" id="m-uptime">—</div>
+      <div class="metric-sub">hive0 service uptime</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">NAS Mount</div>
+      <div class="metric-value green" id="m-nas">—</div>
+      <div class="metric-sub">10.10.10.100 /mnt/cgps</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Gitea Repos</div>
+      <div class="metric-value gold" id="m-repos">—</div>
+      <div class="metric-sub">Active repositories</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">GeoServer Raster</div>
+      <div class="metric-value" id="m-gs-raster">—</div>
+      <div class="metric-sub">raster.cleargeo.tech</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">GeoServer Vector</div>
+      <div class="metric-value" id="m-gs-vector">—</div>
+      <div class="metric-sub">vector.cleargeo.tech</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main content ───────────────────────────────────────── -->
+<main>
+
+  <!-- ── Platform services ────────────────────────────────── -->
+  <section id="services">
+    <div class="section-header">
+      <div>
+        <div class="section-label">CVG Platform</div>
+        <div class="section-title">Live Service Directory</div>
+      </div>
+      <div class="section-hr"></div>
+    </div>
+    <div class="service-grid" id="service-grid">
+      <!-- Injected by JS -->
+    </div>
+  </section>
+
+  <!-- ── Docker containers ────────────────────────────────── -->
+  <section id="containers">
+    <div class="section-header">
+      <div>
+        <div class="section-label">Docker on VM451</div>
+        <div class="section-title">Running Containers</div>
+      </div>
+      <div class="section-hr"></div>
+      <a class="section-action" href="https://portainer.cleargeo.tech" target="_blank">Portainer →</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Container</th>
+            <th>Status</th>
+            <th>Health</th>
+            <th>Port(s)</th>
+            <th>Image</th>
+            <th>Started</th>
+          </tr>
+        </thead>
+        <tbody id="container-tbody">
+          <tr><td colspan="6"><div class="skeleton" style="width:60%;margin:.5rem 0"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── GeoServers ───────────────────────────────────────── -->
+  <section id="geoservers">
+    <div class="section-header">
+      <div>
+        <div class="section-label">Spatial Data Infrastructure</div>
+        <div class="section-title">GeoServer Series</div>
+      </div>
+      <div class="section-hr"></div>
+    </div>
+    <div class="two-col">
+      <div class="info-card">
+        <h3>🗺️ Raster Series — VM454</h3>
+        <div class="info-row"><span class="info-key">Domain</span><span class="info-val accent">raster.cleargeo.tech</span></div>
+        <div class="info-row"><span class="info-key">Host</span><span class="info-val">10.10.10.203 (VM454)</span></div>
+        <div class="info-row"><span class="info-key">Container</span><span class="info-val">cvg-geoserver-raster:8080</span></div>
+        <div class="info-row"><span class="info-key">Services</span><span class="info-val">WMS · WCS · WMTS · GWC</span></div>
+        <div class="info-row"><span class="info-key">Formats</span><span class="info-val">GeoTIFF · COG · ImageMosaic</span></div>
+        <div class="info-row"><span class="info-key">Health</span><span class="info-val green" id="gs-raster-health">Checking…</span></div>
+        <div class="info-row"><span class="info-key">Admin UI</span><a class="info-val accent" href="https://raster.cleargeo.tech/geoserver/web" target="_blank">Open ↗</a></div>
+        <div class="info-row"><span class="info-key">Portal</span><a class="info-val accent" href="https://raster.cleargeo.tech" target="_blank">Open ↗</a></div>
+      </div>
+      <div class="info-card">
+        <h3>📐 Vector Series — VM455</h3>
+        <div class="info-row"><span class="info-key">Domain</span><span class="info-val accent">vector.cleargeo.tech</span></div>
+        <div class="info-row"><span class="info-key">Host</span><span class="info-val">10.10.10.204 (VM455)</span></div>
+        <div class="info-row"><span class="info-key">Container</span><span class="info-val">cvg-geoserver-vector:8080</span></div>
+        <div class="info-row"><span class="info-key">Services</span><span class="info-val">WFS · WMS · Vector Tiles</span></div>
+        <div class="info-row"><span class="info-key">Formats</span><span class="info-val">PostGIS · GeoPackage · SHP</span></div>
+        <div class="info-row"><span class="info-key">Health</span><span class="info-val green" id="gs-vector-health">Checking…</span></div>
+        <div class="info-row"><span class="info-key">Admin UI</span><a class="info-val accent" href="https://vector.cleargeo.tech/geoserver/web" target="_blank">Open ↗</a></div>
+        <div class="info-row"><span class="info-key">Portal</span><a class="info-val accent" href="https://vector.cleargeo.tech" target="_blank">Open ↗</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Proxmox nodes ─────────────────────────────────────── -->
+  <section id="proxmox">
+    <div class="section-header">
+      <div>
+        <div class="section-label">Hypervisor · CVG-QUEEN-11</div>
+        <div class="section-title">Proxmox Nodes &amp; VMs</div>
+      </div>
+      <div class="section-hr"></div>
+      <a class="section-action" href="https://proxmox.cleargeo.tech:8006" target="_blank">Proxmox UI →</a>
+    </div>
+    <div id="proxmox-nodes" class="three-col">
+      <div class="node-card"><div class="skeleton" style="height:80px"></div></div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="section-header" style="margin-bottom:10px">
+        <div class="section-title" style="font-size:14px">Virtual Machines &amp; Containers</div>
+        <div class="section-hr"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>CPU</th><th>RAM</th></tr>
+          </thead>
+          <tbody id="proxmox-vm-tbody">
+            <tr><td colspan="6"><div class="skeleton" style="width:50%;margin:.5rem 0"></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Gitea ─────────────────────────────────────────────── -->
+  <section id="gitea">
+    <div class="section-header">
+      <div>
+        <div class="section-label">Source Control</div>
+        <div class="section-title">Gitea Repositories</div>
+      </div>
+      <div class="section-hr"></div>
+      <a class="section-action" href="https://git.cleargeo.tech" target="_blank">Gitea →</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Repository</th><th>Owner</th><th>Language</th><th>Stars</th><th>Updated</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="gitea-tbody">
+          <tr><td colspan="6"><div class="skeleton" style="width:55%;margin:.5rem 0"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Network hosts ─────────────────────────────────────── -->
+  <section id="network">
+    <div class="section-header">
+      <div>
+        <div class="section-label">CVG LAN · 10.10.10.0/24</div>
+        <div class="section-title">Network Inventory</div>
+      </div>
+      <div class="section-hr"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Host</th><th>IP</th><th>Role</th><th>OS / Platform</th><th>Reach</th></tr>
+        </thead>
+        <tbody id="network-tbody">
+          <tr><td colspan="5"><div class="skeleton" style="width:50%;margin:.5rem 0"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── TrueNAS + Prometheus ──────────────────────────────── -->
+  <div class="two-col">
+    <section>
+      <div class="section-header">
+        <div>
+          <div class="section-label">Storage</div>
+          <div class="section-title">TrueNAS · 10.10.10.100</div>
+        </div>
+        <div class="section-hr"></div>
+      </div>
+      <div class="info-card" id="truenas-card">
+        <div class="skeleton" style="height:120px"></div>
+      </div>
+    </section>
+    <section>
+      <div class="section-header">
+        <div>
+          <div class="section-label">Observability</div>
+          <div class="section-title">Prometheus Targets</div>
+        </div>
+        <div class="section-hr"></div>
+        <a class="section-action" href="https://monitor.cleargeo.tech" target="_blank">Grafana →</a>
+      </div>
+      <div class="info-card" id="prom-card">
+        <div class="skeleton" style="height:120px"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ── Activity log ──────────────────────────────────────── -->
+  <section>
+    <div class="section-header">
+      <div>
+        <div class="section-label">Ops Log</div>
+        <div class="section-title">Activity Feed</div>
+      </div>
+      <div class="section-hr"></div>
+    </div>
+    <div class="log-panel" id="activity-log">
+      <span class="log-ts">[--:--:--]</span> Initializing CVG HIVE0 Operations Center…<br>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Refresh bar ───────────────────────────────────────── -->
+<div class="refresh-bar" id="refresh-bar">
+  <span id="refresh-spin" style="display:none" class="spin">↻</span>
+  <span id="refresh-label">Next refresh in <b id="refresh-countdown">30</b>s</span>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────
+const BASE = '';  // same origin
+const REFRESH_INTERVAL = 30_000;
+let countdown = 30;
+let refreshTimer, countdownTimer;
+
+// ── Platform services definition ─────────────────────────────
+const PLATFORM_SERVICES = [
+  { name: 'CVG Neuron',      url: 'https://neuron.cleargeo.tech',       badge: 'teal',   desc: 'AI Hub & API Gateway',           port: 8095, container: 'cvg-neuron-v1' },
+  { name: 'Raster Portal',   url: 'https://raster.cleargeo.tech',       badge: 'blue',   desc: 'GeoServer Raster · VM454',       port: null, container: 'cvg-geoserver-raster' },
+  { name: 'Vector Portal',   url: 'https://vector.cleargeo.tech',       badge: 'blue',   desc: 'GeoServer Vector · VM455',       port: null, container: 'cvg-geoserver-vector' },
+  { name: 'Gitea',           url: 'https://git.cleargeo.tech',          badge: 'green',  desc: 'Source control & CI/CD',         port: 3000, container: 'cvg-gitea' },
+  { name: 'Portainer',       url: 'https://portainer.cleargeo.tech',    badge: 'blue',   desc: 'Docker management UI',           port: 9000, container: 'cvg-portainer' },
+  { name: 'Grafana',         url: 'https://monitor.cleargeo.tech',      badge: 'yellow', desc: 'Metrics & dashboards',           port: 3100, container: 'cvg-grafana' },
+  { name: 'Storm Surge',     url: 'https://storm-surge.cleargeo.tech',  badge: 'purple', desc: 'Storm surge flood modelling',    port: null, container: 'ssw-api' },
+  { name: 'Rainfall Wizard', url: 'https://rainfall.cleargeo.tech',     badge: 'teal',   desc: 'Rainfall analysis tool',         port: 8002, container: 'cvg-rainfall' },
+  { name: 'SLR Wizard',      url: 'https://slr.cleargeo.tech',          badge: 'teal',   desc: 'Sea-level rise modelling',       port: 8001, container: 'cvg-slr' },
+  { name: 'Job Status',      url: 'https://status.cleargeo.tech',       badge: 'green',  desc: 'Platform job monitor',           port: 8090, container: 'cvg-job-status' },
+  { name: 'DNS Engine',      url: 'https://dns.cleargeo.tech',          badge: 'gray',   desc: 'CVG DNS management',             port: 8094, container: 'cvg-dns-engine' },
+  { name: 'Git Engine',      url: 'https://git-engine.cleargeo.tech',   badge: 'gray',   desc: 'Gitea ops engine',               port: 8092, container: 'cvg-git-engine' },
+  { name: 'Audit Engine',    url: 'https://audit.cleargeo.tech',        badge: 'gray',   desc: 'Audit results API',              port: 8093, container: 'cvg-audit-results-api' },
+  { name: 'Support Engine',  url: 'https://neuron.cleargeo.tech/queens',badge: 'purple', desc: 'Queen Command dashboard',        port: 8091, container: 'cvg-support-engine' },
+];
+
+// ── Utility ──────────────────────────────────────────────────
+function ts() {
+  return new Date().toLocaleTimeString('en-US', { hour12: false });
+}
+function log(msg, cls = 'log-info') {
+  const el = document.getElementById('activity-log');
+  el.innerHTML += `<span class="log-ts">[${ts()}]</span> <span class="${cls}">${msg}</span><br>`;
+  el.scrollTop = el.scrollHeight;
+  // Keep last 200 lines
+  const lines = el.querySelectorAll('br');
+  if (lines.length > 200) el.innerHTML = el.innerHTML.split('<br>').slice(-180).join('<br>');
+}
+function fmt_uptime(s) {
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+function fmt_bytes(b) {
+  if (!b) return '—';
+  if (b > 1e9) return (b / 1e9).toFixed(1) + ' GB';
+  if (b > 1e6) return (b / 1e6).toFixed(1) + ' MB';
+  return (b / 1e3).toFixed(0) + ' KB';
+}
+async function apiFetch(path) {
+  try {
+    const r = await fetch(BASE + path, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+// ── Clock ────────────────────────────────────────────────────
+function startClock() {
+  function tick() {
+    const now = new Date();
+    document.getElementById('tick-clock').textContent = now.toUTCString().replace('GMT', 'UTC');
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+// ── Service grid render ──────────────────────────────────────
+function renderServiceGrid(containers = []) {
+  const runningNames = new Set(containers.map(c => c.name));
+  const grid = document.getElementById('service-grid');
+  grid.innerHTML = PLATFORM_SERVICES.map(svc => {
+    const running = runningNames.size === 0 ? null : runningNames.has(svc.container);
+    const badge = running === null ? 'badge-gray' : running ? 'badge-green' : 'badge-red';
+    const label = running === null ? 'unknown' : running ? 'online' : 'offline';
+    return `<a class="service-card" href="${svc.url}" target="_blank">
+      <div class="service-card-top">
+        <div>
+          <div class="service-name">${svc.name}</div>
+          <div class="service-url">${svc.url.replace('https://','')}</div>
+        </div>
+        <span class="badge ${badge}">${label}</span>
+      </div>
+      <div class="service-desc">${svc.desc}</div>
+    </a>`;
+  }).join('');
+}
+
+// ── Update hero metrics ──────────────────────────────────────
+function updateHero(status) {
+  if (!status) return;
+  const d = status.docker || {};
+  const el_c = document.getElementById('m-containers');
+  const el_cs = document.getElementById('m-containers-sub');
+  el_c.textContent = d.running ?? '—';
+  el_cs.textContent = `${d.unhealthy ?? 0} unhealthy · ${d.total ?? 0} total`;
+
+  const up = status.uptime_seconds;
+  document.getElementById('m-uptime').textContent = up ? fmt_uptime(up) : '—';
+
+  const infra = status.infrastructure || {};
+  const nas = status.nas_mount_up ?? status.overall_ok;
+  const nasEl = document.getElementById('m-nas');
+  nasEl.textContent = nas ? 'Mounted' : 'Down';
+  nasEl.className = 'metric-value ' + (nas ? 'green' : 'err');
+}
+
+// ── Container table ──────────────────────────────────────────
+function renderContainers(containers) {
+  const tbody = document.getElementById('container-tbody');
+  if (!containers || containers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:20px">No data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = containers.map(c => {
+    const health = c.health || c.status;
+    const healthCls = health === 'healthy' ? 'ok' : health === 'running' ? 'ok' : 'warn';
+    const ports = (c.ports || []).filter(p => p.public_port).map(p => `${p.public_port}→${p.private_port}`).join(', ') || '—';
+    const imgShort = (c.image || '').split('/').pop().split(':')[0];
+    const started = c.started ? new Date(c.started).toLocaleString() : '—';
+    return `<tr>
+      <td class="name">${c.name}</td>
+      <td><span class="health-dot ok">${c.status}</span></td>
+      <td><span class="health-dot ${healthCls}">${health}</span></td>
+      <td class="port">${ports}</td>
+      <td style="color:var(--text-muted);font-size:11px">${imgShort}</td>
+      <td style="color:var(--text-muted);font-size:11px">${started}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── GeoServer health ─────────────────────────────────────────
+async function checkGeoServers() {
+  async function check(url, elId, metricId) {
+    const el = document.getElementById(elId);
+    const mel = document.getElementById(metricId);
+    try {
+      const r = await fetch(url + '/geoserver/web/', { mode: 'no-cors', signal: AbortSignal.timeout(5000) });
+      el.textContent = '✓ Online'; el.className = 'info-val green';
+      if (mel) { mel.textContent = 'Online'; mel.className = 'metric-value green'; }
+    } catch {
+      el.textContent = '⚠ Unreachable'; el.className = 'info-val';
+      if (mel) { mel.textContent = 'Check'; mel.className = 'metric-value gold'; }
+    }
+  }
+  // We probe via the hive API instead to avoid CORS
+  const gsR = await apiFetch('/api/ssw/health');
+  // Use container status from platform status as proxy
+  const status = await apiFetch('/api/platform/status');
+  if (status && status.docker) {
+    const containers = status.docker.containers || [];
+    const raster = containers.find(c => c.name === 'cvg-geoserver-raster');
+    const vector = containers.find(c => c.name === 'cvg-geoserver-vector');
+    const rEl = document.getElementById('gs-raster-health');
+    const vEl = document.getElementById('gs-vector-health');
+    const rmEl = document.getElementById('m-gs-raster');
+    const vmEl = document.getElementById('m-gs-vector');
+    if (raster) {
+      const ok = raster.health === 'healthy' || raster.status === 'running';
+      rEl.textContent = ok ? '✓ Healthy' : '⚠ ' + raster.health;
+      rEl.className = ok ? 'info-val green' : 'info-val yellow';
+      if (rmEl) { rmEl.textContent = ok ? 'Healthy' : 'Warn'; rmEl.className = 'metric-value ' + (ok ? 'green' : 'gold'); }
+    }
+    if (vector) {
+      const ok = vector.health === 'healthy' || vector.status === 'running';
+      vEl.textContent = ok ? '✓ Healthy' : '⚠ ' + vector.health;
+      vEl.className = ok ? 'info-val green' : 'info-val yellow';
+      if (vmEl) { vmEl.textContent = ok ? 'Healthy' : 'Warn'; vmEl.className = 'metric-value ' + (ok ? 'green' : 'gold'); }
+    }
+  }
+}
+
+// ── Proxmox nodes ─────────────────────────────────────────────
+function renderProxmoxNodes(nodes) {
+  const el = document.getElementById('proxmox-nodes');
+  if (!nodes || nodes.length === 0) {
+    el.innerHTML = '<div class="node-card"><p style="color:var(--text-muted)">No Proxmox data available</p></div>';
+    return;
+  }
+  el.innerHTML = nodes.map(n => {
+    const cpuPct = Math.round((n.cpu ?? 0) * 100);
+    const memPct = n.maxmem ? Math.round((n.mem / n.maxmem) * 100) : 0;
+    const diskPct = n.maxdisk ? Math.round((n.disk / n.maxdisk) * 100) : 0;
+    const cpuCls = cpuPct > 80 ? 'err' : cpuPct > 60 ? 'warn' : '';
+    const memCls = memPct > 80 ? 'err' : memPct > 65 ? 'warn' : '';
+    return `<div class="node-card">
+      <div class="node-header">
+        <div class="node-name">${n.node || n.id}</div>
+        <span class="badge ${n.status === 'online' ? 'badge-green' : 'badge-red'}">${n.status}</span>
+      </div>
+      <div class="prog-label"><span>CPU</span><span>${cpuPct}%</span></div>
+      <div class="progress-bar"><div class="progress-fill ${cpuCls}" style="width:${cpuPct}%"></div></div>
+      <div class="prog-label"><span>RAM</span><span>${memPct}%</span></div>
+      <div class="progress-bar"><div class="progress-fill ${memCls}" style="width:${memPct}%"></div></div>
+      <div class="prog-label"><span>Disk</span><span>${diskPct}%</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${diskPct}%"></div></div>
+      <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
+        ${n.maxcpu ? n.maxcpu + ' vCPU' : ''} · ${n.maxmem ? (n.maxmem/1024**3).toFixed(0)+'GB RAM' : ''} · Uptime ${n.uptime ? fmt_uptime(n.uptime) : '—'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderProxmoxVMs(vms) {
+  const tbody = document.getElementById('proxmox-vm-tbody');
+  if (!vms || vms.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:20px">No VMs/CTs</td></tr>';
+    return;
+  }
+  const sorted = [...vms].sort((a, b) => (a.vmid || 0) - (b.vmid || 0));
+  tbody.innerHTML = sorted.map(vm => {
+    const ok = vm.status === 'running';
+    const cpuPct = vm.cpu ? (vm.cpu * 100).toFixed(1) + '%' : '—';
+    const ramPct = (vm.mem && vm.maxmem) ? Math.round(vm.mem / vm.maxmem * 100) + '%' : '—';
+    return `<tr>
+      <td style="color:var(--text-muted)">${vm.vmid || vm.id || '—'}</td>
+      <td class="name">${vm.name || '—'}</td>
+      <td><span class="badge badge-gray">${vm.type || 'vm'}</span></td>
+      <td><span class="health-dot ${ok ? 'ok' : 'err'}">${vm.status}</span></td>
+      <td>${cpuPct}</td>
+      <td>${ramPct}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Gitea repos ───────────────────────────────────────────────
+function renderGitea(repos) {
+  const tbody = document.getElementById('gitea-tbody');
+  if (!repos || repos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:20px">No repository data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = repos.slice(0, 20).map(r => {
+    const updated = r.updated_at ? new Date(r.updated_at).toLocaleDateString() : '—';
+    const lang = r.language || '—';
+    return `<tr>
+      <td class="name"><a href="${r.html_url || '#'}" target="_blank" style="color:var(--accent)">${r.full_name || r.name}</a></td>
+      <td style="color:var(--text-muted)">${r.owner?.login || '—'}</td>
+      <td><span class="badge badge-gray">${lang}</span></td>
+      <td style="color:var(--gold)">${r.stars_count ?? 0}</td>
+      <td style="color:var(--text-muted)">${updated}</td>
+      <td><a href="${r.html_url || '#'}" target="_blank" style="color:var(--accent);font-size:11px">Open ↗</a></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('m-repos').textContent = repos.length;
+}
+
+// ── Network hosts ─────────────────────────────────────────────
+function renderNetwork(hosts) {
+  const tbody = document.getElementById('network-tbody');
+  if (!hosts || hosts.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:20px">No network data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = hosts.map(h => {
+    const reach = h.reachable ?? h.ping ?? null;
+    const reachCls = reach === true ? 'ok' : reach === false ? 'err' : 'warn';
+    const reachLabel = reach === true ? 'Online' : reach === false ? 'Offline' : 'Unknown';
+    return `<tr>
+      <td class="name">${h.hostname || h.name || h.host || '—'}</td>
+      <td class="port">${h.ip || '—'}</td>
+      <td style="color:var(--text-muted)">${h.role || h.description || '—'}</td>
+      <td style="color:var(--text-muted)">${h.os || h.platform || '—'}</td>
+      <td><span class="health-dot ${reachCls}">${reachLabel}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── TrueNAS ───────────────────────────────────────────────────
+function renderTrueNAS(data) {
+  const el = document.getElementById('truenas-card');
+  if (!data) {
+    el.innerHTML = '<h3>💾 TrueNAS SCALE</h3><div style="color:var(--text-muted);font-size:12px">API unavailable</div>';
+    return;
+  }
+  const pools = data.pools || [];
+  el.innerHTML = `<h3>💾 TrueNAS SCALE · 10.10.10.100</h3>` +
+    `<div class="info-row"><span class="info-key">Version</span><span class="info-val">${data.version || '—'}</span></div>` +
+    `<div class="info-row"><span class="info-key">Hostname</span><span class="info-val">${data.hostname || '—'}</span></div>` +
+    `<div class="info-row"><span class="info-key">Status</span><span class="info-val green">${data.status || 'Connected'}</span></div>` +
+    (pools.length > 0 ? pools.map(p =>
+      `<div class="info-row"><span class="info-key">Pool: ${p.name}</span><span class="info-val ${p.status === 'ONLINE' ? 'green' : 'gold'}">${p.status}</span></div>`
+    ).join('') : '<div class="info-row"><span class="info-key">Pools</span><span class="info-val">No data</span></div>');
+}
+
+// ── Prometheus ────────────────────────────────────────────────
+function renderPrometheus(data) {
+  const el = document.getElementById('prom-card');
+  if (!data) {
+    el.innerHTML = '<h3>📊 Prometheus / Grafana</h3><div class="info-row"><span class="info-key">Status</span><span class="info-val" style="color:var(--text-muted)">Unavailable</span></div>';
+    return;
+  }
+  const targets = Array.isArray(data) ? data : (data.data?.activeTargets || []);
+  const up = targets.filter(t => t.health === 'up' || t.lastScrapeError === '').length;
+  el.innerHTML = `<h3>📊 Prometheus · Grafana</h3>
+    <div class="info-row"><span class="info-key">Active Targets</span><span class="info-val green">${targets.length}</span></div>
+    <div class="info-row"><span class="info-key">Scrape Up</span><span class="info-val green">${up} / ${targets.length}</span></div>
+    <div class="info-row"><span class="info-key">Prometheus</span><a class="info-val accent" href="https://hive0.cleargeo.tech/api/prometheus/targets" target="_blank">View targets ↗</a></div>
+    <div class="info-row"><span class="info-key">Grafana</span><a class="info-val accent" href="https://monitor.cleargeo.tech" target="_blank">Open dashboards ↗</a></div>` +
+    targets.slice(0, 5).map(t => `<div class="info-row"><span class="info-key" style="font-size:10px">${t.labels?.job || t.scrapeUrl || '—'}</span><span class="health-dot ${t.health === 'up' ? 'ok' : 'err'}" style="font-size:10px">${t.health || 'unknown'}</span></div>`).join('');
+}
+
+// ── Main data load ────────────────────────────────────────────
+async function loadAll() {
+  const spin = document.getElementById('refresh-spin');
+  spin.style.display = 'inline-block';
+  log('Refreshing platform data…', 'log-info');
+
+  try {
+    // Platform status (most data)
+    const status = await apiFetch('/api/platform/status');
+    if (status) {
+      updateHero(status);
+      const containers = status.docker?.containers || [];
+      renderContainers(containers);
+      renderServiceGrid(containers);
+      log(`Docker: ${containers.length} containers loaded`, 'log-ok');
+    } else {
+      renderServiceGrid([]);
+      log('Platform status unavailable', 'log-warn');
+    }
+
+    // GeoServer health via container status
+    await checkGeoServers();
+
+    // Proxmox nodes
+    const nodes = await apiFetch('/api/proxmox/live/nodes');
+    if (nodes) {
+      const nodeList = Array.isArray(nodes) ? nodes : (nodes.data || []);
+      renderProxmoxNodes(nodeList);
+      log(`Proxmox: ${nodeList.length} nodes`, 'log-ok');
+    } else {
+      renderProxmoxNodes(null);
+      log('Proxmox nodes unavailable', 'log-warn');
+    }
+
+    // Proxmox VMs + CTs
+    const vmsData = await apiFetch('/api/proxmox/live/vms');
+    const ctsData = await apiFetch('/api/proxmox/live/containers');
+    const allVms = [
+      ...(Array.isArray(vmsData) ? vmsData : (vmsData?.data || [])),
+      ...(Array.isArray(ctsData) ? ctsData : (ctsData?.data || [])),
+    ];
+    renderProxmoxVMs(allVms);
+    if (allVms.length) log(`Proxmox: ${allVms.length} VMs/CTs loaded`, 'log-ok');
+
+    // Gitea repos
+    const repos = await apiFetch('/api/gitea/repos');
+    if (repos) {
+      const repoList = Array.isArray(repos) ? repos : (repos.data || repos.repos || []);
+      renderGitea(repoList);
+      log(`Gitea: ${repoList.length} repositories`, 'log-ok');
+    } else {
+      renderGitea(null);
+    }
+
+    // Network hosts
+    const hosts = await apiFetch('/api/network/hosts');
+    if (hosts) {
+      const rawHosts = Array.isArray(hosts) ? hosts : (hosts.hosts || hosts.data || hosts);
+      const hostList = Array.isArray(rawHosts)
+        ? rawHosts
+        : Object.entries(rawHosts).map(([name, info]) => ({ name, hostname: name, ip: info.host, reachable: info.up, ...info }));
+      renderNetwork(hostList);
+      log(`Network: ${hostList.length} hosts`, 'log-ok');
+    }
+
+    // TrueNAS
+    const truenas = await apiFetch('/api/truenas/status');
+    renderTrueNAS(truenas);
+
+    // Prometheus
+    const prom = await apiFetch('/api/prometheus/targets');
+    renderPrometheus(prom);
+
+    document.getElementById('nav-status-label').textContent = 'All Systems Online';
+    log('Refresh complete ✓', 'log-ok');
+
+  } catch (e) {
+    log('Error during refresh: ' + e.message, 'log-err');
+  }
+
+  spin.style.display = 'none';
+}
+
+// ── Countdown & auto-refresh ──────────────────────────────────
+function startRefreshCycle() {
+  clearInterval(refreshTimer);
+  clearInterval(countdownTimer);
+  countdown = REFRESH_INTERVAL / 1000;
+  document.getElementById('refresh-countdown').textContent = countdown;
+
+  countdownTimer = setInterval(() => {
+    countdown--;
+    document.getElementById('refresh-countdown').textContent = Math.max(0, countdown);
+  }, 1000);
+
+  refreshTimer = setInterval(() => {
+    loadAll();
+    clearInterval(countdownTimer);
+    countdown = REFRESH_INTERVAL / 1000;
+    countdownTimer = setInterval(() => {
+      countdown--;
+      document.getElementById('refresh-countdown').textContent = Math.max(0, countdown);
+    }, 1000);
+  }, REFRESH_INTERVAL);
+}
+
+// ── Init ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  startClock();
+  renderServiceGrid([]);   // empty state placeholder
+  loadAll();
+  startRefreshCycle();
+});
+</script>
+</body>
+</html>

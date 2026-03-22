@@ -1,0 +1,587 @@
+# CVG Platform — Caddyfile (LIVE on VM451 @ /opt/cvg-platform/Caddyfile)
+# Automatic HTTPS for all *.cleargeo.tech services via Let's Encrypt
+# Deploy: /opt/cvg-platform/Caddyfile (mounted by cvg-caddy container)
+#
+# BACK-SYNCED from live VM451 on 2026-03-21 by CVG-Cline AI Infrastructure Agent
+#
+# Services served:
+#   storm-surge.cleargeo.tech  — SSW FastAPI (ssw-api:8080)
+#   slr.cleargeo.tech          — SLR Wizard (cvg-slr:8001)
+#   rainfall.cleargeo.tech     — Rainfall Wizard (cvg-rainfall:8002)
+#   status.cleargeo.tech       — CVG Job Status Dashboard (cvg-job-status:8090)
+#   jobs.cleargeo.tech         — CVG Job Status API (cvg-job-status:8090)
+#   ssw-status.cleargeo.tech   — SSW Live Status (cvg-job-status:8090)
+#   portainer.cleargeo.tech    — Portainer CE (cvg-portainer:9000) [basic auth]
+#   git.cleargeo.tech          — Gitea (cvg-gitea:3000)
+#   monitor.cleargeo.tech      — Grafana (cvg-grafana:3000)
+#   hive0.cleargeo.tech        — HIVE0 portal (cvg-hive:8081)
+#   admin.cleargeo.tech        — redirect → portainer.cleargeo.tech
+#   :80/:443 catch-all         — 403 block
+
+{
+    email organization-support@cleargeo.tech
+    # Use LE only (disable ZeroSSL fallback)
+    acme_ca https://acme-v02.api.letsencrypt.org/directory
+    admin :2019
+    log {
+        output file /data/logs/access.log {
+            roll_size 50mb
+            roll_keep 10
+        }
+    }
+}
+
+# -- Storm Surge Wizard -------------------------------------------------------
+storm-surge.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # CVG SSW Job Status Page -- static files served from /srv/static/status/
+    handle /status* {
+        root * /srv/static
+        file_server
+    }
+
+    # Landing page - static HTML
+    handle / {
+        root * /srv/static/storm-surge
+        file_server
+    }
+
+    reverse_proxy ssw-api:8080 {
+        health_uri /health
+        health_interval 30s
+        health_timeout 10s
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+            response_header_timeout 30s
+        }
+    }
+
+    log {
+        output file /data/logs/storm-surge.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- SLR Wizard ---------------------------------------------------------------
+slr.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    handle / {
+        root * /srv/static/landing/slr
+        file_server
+    }
+
+    reverse_proxy cvg-slr:8001 {
+        health_uri /health
+        health_interval 30s
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+        }
+    }
+
+    log {
+        output file /data/logs/slr.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- Rainfall Wizard ----------------------------------------------------------
+rainfall.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    handle / {
+        root * /srv/static/rainfall
+        file_server
+    }
+
+    reverse_proxy cvg-rainfall:8002 {
+        health_uri /health
+        health_interval 30s
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+        }
+    }
+
+    log {
+        output file /data/logs/rainfall.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- CVG Job Status -- Live Telemetry Dashboard (status.cleargeo.tech) --------
+status.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    reverse_proxy cvg-job-status:8090 {
+        health_uri /health
+        health_interval 15s
+        health_timeout 5s
+        transport http {
+            read_timeout 30s
+            write_timeout 30s
+            dial_timeout 5s
+        }
+    }
+
+    log {
+        output file /data/logs/status.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- CVG Job Status API (jobs.cleargeo.tech) ----------------------------------
+jobs.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        -Server
+    }
+
+    reverse_proxy cvg-job-status:8090 {
+        health_uri /health
+        health_interval 30s
+        transport http {
+            read_timeout 60s
+        }
+    }
+
+    log {
+        output file /data/logs/jobs.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- SSW Live Status Server (ssw-status.cleargeo.tech) -----------------------
+ssw-status.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+
+    reverse_proxy cvg-job-status:8090 {
+        health_uri /health
+        health_interval 30s
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+        }
+    }
+
+    log {
+        output file /data/logs/ssw-status.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- Portainer (Docker Management) -- basic_auth protected -------------------
+portainer.cleargeo.tech {
+    encode gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    basic_auth /* {
+        {$CADDY_PORTAINER_USER:admin} {$CADDY_PORTAINER_HASH:$2a$14$HBVzQVQxUHFGkGdZYu7SEePc/D6Bzlu9J6xHw5hbjjitqR59rKtoe}
+    }
+
+    reverse_proxy cvg-portainer:9000 {
+        transport http {
+            read_timeout 120s
+        }
+    }
+}
+
+# -- Gitea (Internal Git Server) ----------------------------------------------
+git.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+
+    reverse_proxy cvg-gitea:3000 {
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+        }
+    }
+
+    log {
+        output file /data/logs/gitea.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- Grafana Monitoring -------------------------------------------------------
+monitor.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+
+    reverse_proxy cvg-grafana:3000 {
+        transport http {
+            read_timeout 60s
+        }
+    }
+
+    log {
+        output file /data/logs/monitor.log {
+            roll_size 10mb
+            roll_keep 3
+        }
+    }
+}
+
+# -- Admin redirect -> Portainer ----------------------------------------------
+admin.cleargeo.tech {
+    redir https://portainer.cleargeo.tech{uri} permanent
+}
+
+# -- HIVE0 Infrastructure Portal (hive0.cleargeo.tech) ----------------------
+hive0.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    reverse_proxy cvg-hive:8081 {
+        health_uri /api/health
+        health_interval 30s
+        transport http {
+            read_timeout 60s
+            write_timeout 60s
+        }
+    }
+
+    log {
+        output file /data/logs/hive0.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- GeoServer Raster (raster.cleargeo.tech) ----------------------------------
+raster.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+        -X-Powered-By
+    }
+
+    # All routing, access control, CORS, and portal handled by caddy-gsr on VM454:80.
+    # VM451 terminates TLS and passes traffic through — do NOT proxy directly to
+    # GeoServer:8080 here or /status and all caddy-gsr rules will be bypassed.
+    # NOTE: No health_uri — health probes send Host:10.10.10.203 (not raster.cleargeo.tech)
+    # causing a 308 redirect from caddy-gsr. caddy-gsr already health-checks GeoServer.
+    reverse_proxy http://10.10.10.203:80 {
+        header_up Host              {host}
+        header_up X-Forwarded-For   {remote_host}
+        header_up X-Real-IP         {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        transport http {
+            dial_timeout            30s
+            response_header_timeout 120s
+            read_timeout            300s
+            write_timeout           300s
+        }
+        flush_interval -1
+    }
+
+    log {
+        output file /data/logs/geoserver-raster.log {
+            roll_size 50mb
+            roll_keep 7
+        }
+    }
+}
+
+# -- GeoServer Vector (vector.cleargeo.tech) -----------------------------------
+vector.cleargeo.tech {
+    encode gzip zstd
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+        -X-Powered-By
+    }
+
+    # All routing, access control, CORS, and portal handled by caddy-gsv on VM455:80.
+    # VM451 terminates TLS and passes traffic through — do NOT proxy directly to
+    # GeoServer:8080 here or /status and all caddy-gsv rules will be bypassed.
+    # NOTE: No health_uri — caddy-gsv already health-checks geoserver-vector:8080 directly.
+    reverse_proxy http://10.10.10.204:80 {
+        header_up Host              {host}
+        header_up X-Forwarded-For   {remote_host}
+        header_up X-Real-IP         {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        transport http {
+            dial_timeout            30s
+            response_header_timeout 60s
+            read_timeout            300s
+            write_timeout           300s
+        }
+        flush_interval -1
+    }
+
+    log {
+        output file /data/logs/geoserver-vector.log {
+            roll_size 50mb
+            roll_keep 7
+        }
+    }
+}
+
+# -- CVG Support Engine (infra.cleargeo.tech) ----------------------------------
+infra.cleargeo.tech {
+    encode gzip zstd
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+    @blocked not remote_ip 10.10.10.0/24 127.0.0.1/8
+    handle @blocked {
+        respond "CVG Infrastructure - Internal access only" 403
+    }
+    reverse_proxy cvg-support-engine:8091 {
+        health_uri /health
+        health_interval 30s
+        health_timeout 10s
+    }
+    log {
+        output file /data/logs/infra.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- CVG Git Engine (git-engine.cleargeo.tech) ---------------------------------
+git-engine.cleargeo.tech {
+    encode gzip zstd
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+    @blocked not remote_ip 10.10.10.0/24 127.0.0.1/8
+    handle @blocked {
+        respond "CVG Git Engine - Internal access only" 403
+    }
+    reverse_proxy cvg-git-engine:8092 {
+        health_uri /health
+        health_interval 30s
+        health_timeout 10s
+    }
+    log {
+        output file /data/logs/git-engine.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- CVG Audit API (audit.cleargeo.tech) ---------------------------------------
+audit.cleargeo.tech {
+    encode gzip zstd
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    # Landing page — serve static portal at root (LAN only)
+    handle / {
+        @audlan remote_ip 10.10.10.0/24 127.0.0.1/8 172.16.0.0/12
+        handle @audlan {
+            root * /srv/static/audit
+            file_server
+        }
+        handle {
+            respond "CVG Audit - Internal access only" 403
+        }
+    }
+
+    @blocked not remote_ip 10.10.10.0/24 127.0.0.1/8 172.16.0.0/12
+    handle @blocked {
+        respond "CVG Audit - Internal access only" 403
+    }
+    reverse_proxy cvg-audit-results-api:8001 {
+        health_uri /health
+        health_interval 30s
+        health_timeout 5s
+    }
+    log {
+        output file /data/logs/audit.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- CVG DNS Support Engine (dns.cleargeo.tech) --------------------------------
+dns.cleargeo.tech {
+    encode gzip zstd
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+    @blocked not remote_ip 10.10.10.0/24 127.0.0.1/8
+    handle @blocked {
+        respond "CVG DNS Engine - Internal access only" 403
+    }
+    reverse_proxy cvg-dns-engine:8094 {
+        health_uri /api/health
+        health_interval 30s
+        health_timeout 10s
+    }
+    log {
+        output file /data/logs/dns.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- CVG Neuron AI Intelligence Engine (neuron.cleargeo.tech) ----------------
+neuron.cleargeo.tech {
+    encode gzip zstd
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    # Queen Command dashboard — served by Support Engine (cvg-support-engine:8091)
+    handle /queens* {
+        reverse_proxy cvg-support-engine:8091 {
+            transport http {
+                read_timeout 60s
+                write_timeout 60s
+            }
+        }
+    }
+    handle /api/queens* {
+        reverse_proxy cvg-support-engine:8091 {
+            transport http {
+                read_timeout 60s
+                write_timeout 60s
+            }
+        }
+    }
+
+    reverse_proxy cvg-neuron:8095 {
+        health_uri /health
+        health_interval 30s
+        health_timeout 10s
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+            response_header_timeout 120s
+        }
+    }
+    log {
+        output file /data/logs/neuron.log {
+            roll_size 20mb
+            roll_keep 5
+        }
+    }
+}
+
+# -- Catch-all (block unknown hosts) -----------------------------------------
+:80, :443 {
+    respond "CVG Infrastructure - Unauthorized" 403
+}
+
+
+# =============================================================================
+# Internal health probe — tls internal self-signed cert for localhost.
+# curl -sk https://localhost/status  ->  HTTP 200
+# =============================================================================
+localhost {
+    tls internal
+
+    handle /status {
+        respond "OK" 200
+    }
+
+    respond 404
+}

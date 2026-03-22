@@ -1,0 +1,92 @@
+# =============================================================================
+# CVG GeoServer Raster — LOCAL DEVELOPMENT compose
+# (c) Clearview Geographic, LLC — Proprietary
+# =============================================================================
+# Usage (from project root):
+#   docker compose up -d --build
+#
+# Access points:
+#   http://localhost/            → CVG Raster Data Services Portal
+#   http://localhost/geoserver/  → GeoServer (via Caddy proxy)
+#   http://localhost:8080/geoserver/web/ → GeoServer direct (no portal)
+#
+# Default GeoServer login: admin / geoserver
+#
+# Stop:   docker compose down
+# Logs:   docker compose logs -f geoserver-raster-dev
+# Shell:  docker compose exec geoserver-raster-dev bash
+# Caddy:  docker compose logs -f caddy-dev
+#
+# For production (HTTPS + resource limits + Watchtower), use:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# =============================================================================
+version: "3.9"
+
+services:
+  geoserver-raster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cvg/geoserver-raster:dev
+    container_name: geoserver-raster-dev
+    ports:
+      - "8080:8080"           # Direct GeoServer access (bypasses portal)
+    environment:
+      - GEOSERVER_DATA_DIR=/opt/geoserver/data_dir
+      - GEOWEBCACHE_CACHE_DIR=/opt/geowebcache_data
+      - PROXY_BASE_URL=http://localhost/geoserver
+      - GEOSERVER_CSRF_WHITELIST=localhost,127.0.0.1
+      - JAVA_OPTS=-server -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom -DALLOW_ENV_PARAMETRIZATION=true -Dorg.geotools.referencing.forceXY=true
+    volumes:
+      - geoserver-data:/opt/geoserver/data_dir
+      - geoserver-gwc:/opt/geowebcache_data
+      # Mount local raster data for development:
+      # - ./data:/mnt/data:ro
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null",
+             "http://localhost:8080/geoserver/ows"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
+    networks:
+      - dev-internal
+
+  # ── Caddy dev — serves portal at http://localhost/ ────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy-gsr-dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - ./caddy/portal:/srv/portal:ro
+    depends_on:
+      geoserver-raster:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "2"
+    networks:
+      - dev-internal
+
+networks:
+  dev-internal:
+    name: cvg-gsr-dev
+    driver: bridge
+
+volumes:
+  geoserver-data:
+    name: geoserver-raster-data-dev
+  geoserver-gwc:
+    name: geoserver-raster-gwc-dev

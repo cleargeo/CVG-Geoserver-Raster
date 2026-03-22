@@ -1,0 +1,249 @@
+# =============================================================================
+# CVG GeoServer Raster — Production Stack
+# (c) Clearview Geographic, LLC — Proprietary
+# =============================================================================
+# Deploys on VM 454 (cvg-geoserver-raster-01): raster.cleargeo.tech
+# Host IP: 10.10.10.203 | Public via FortiGate VIP: 131.148.52.234 (dedicated)
+#   OR via VM451 Caddy (.231) — see deploy_production.sh --target vm451
+#
+# Run:    docker compose -f docker-compose.prod.yml up -d --build
+# Update: docker compose -f docker-compose.prod.yml build && \
+#         docker compose -f docker-compose.prod.yml up -d
+# Logs:   docker compose -f docker-compose.prod.yml logs -f geoserver-raster
+#
+# DNS A record required (dedicated VM route):
+#   raster  IN  A  131.148.52.225         →  GeoServer @ VM454:8080
+# =============================================================================
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-labels-gsr: &labels-gsr
+  com.cvg.org:        "Clearview Geographic LLC"
+  com.cvg.maintainer: "Alex Zelenski, GISP <azelenski@clearviewgeographic.com>"
+  com.cvg.service:    "geoserver-raster"
+  com.cvg.domain:     "cleargeo.tech"
+  com.cvg.tier:       "application"
+  com.cvg.host:       "cvg-geoserver-raster-01"
+  com.cvg.host.ip:    "10.10.10.203"
+  com.cvg.url:        "https://raster.cleargeo.tech"
+
+services:
+
+  # ── GeoServer Raster (Jetty embedded) ─────────────────────────────────────
+  geoserver-raster:
+    <<: *restart
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cvg/geoserver-raster:latest
+    container_name: geoserver-raster
+    expose:
+      - "8080"
+    volumes:
+      - geoserver-data:/opt/geoserver/data_dir
+      - geoserver-gwc:/opt/geowebcache_data
+      - /var/log/geoserver:/var/log/geoserver
+      - /mnt/cgps:/mnt/cgps:ro          # TrueNAS CGPS — raster datasets (GeoTIFF, mosaics)
+      - /mnt/cgdp:/mnt/cgdp:ro          # TrueNAS CGDP — processed raster output
+      # Control-flow plugin config — limits concurrent OWS requests (circuit breaker)
+      # Requires control-flow extension plugin (installed in Dockerfile)
+      - ./scripts/controlflow.properties:/opt/geoserver/data_dir/controlflow.properties:ro
+    environment:
+      - GEOSERVER_DATA_DIR=/opt/geoserver/data_dir
+      - GEOWEBCACHE_CACHE_DIR=/opt/geowebcache_data
+      - PROXY_BASE_URL=https://raster.cleargeo.tech/geoserver
+      - GEOSERVER_CSRF_WHITELIST=raster.cleargeo.tech
+      # Only WARN/ERROR output in prod — cuts log I/O significantly vs. INFO/DEBUG
+      - GEOSERVER_LOG_PROFILE=PRODUCTION_LOGGING
+      # ── JVM flags ──
+      # VM454 has 32GB RAM; mem_limit=24g → heap ≈ 18g (75%).
+      # G1GC with string dedup, conservative GC threads, fast entropy.
+      # GeoServer-specific: suppress noisy log levels, force XY axis order.
+      - JAVA_OPTS=-server
+          -XX:+UseContainerSupport
+          -XX:MaxRAMPercentage=75.0
+          -XX:InitialRAMPercentage=25.0
+          -XX:+UseG1GC
+          -XX:MaxGCPauseMillis=200
+          -XX:NewRatio=2
+          -XX:ParallelGCThreads=4
+          -XX:ConcGCThreads=2
+          -XX:G1HeapRegionSize=8m
+          -XX:+ParallelRefProcEnabled
+          -XX:SurvivorRatio=8
+          -XX:+ExplicitGCInvokesConcurrent
+          -XX:+UseStringDeduplication
+          -XX:+OptimizeStringConcat
+          -Djava.awt.headless=true
+          -Djava.net.preferIPv4Stack=true
+          -Djava.security.egd=file:/dev/./urandom
+          -Dfile.encoding=UTF-8
+          -Djavax.servlet.request.encoding=UTF-8
+          -Djavax.servlet.response.encoding=UTF-8
+          -DALLOW_ENV_PARAMETRIZATION=true
+          -Dorg.geoserver.htmlui.timeout=60
+          -Dorg.geotools.image.overview.policy=SPEED
+          -Dorg.eclipse.jetty.server.Request.maxFormContentSize=52428800
+          -Dorg.geotools.coverage.grid.CoverageFactoryFinder.level=SEVERE
+          -Dorg.geotools.referencing.forceXY=true
+          -XX:+AlwaysPreTouch
+          -XX:+PerfDisableSharedMem
+          -Dlog4j2.formatMsgNoLookups=true
+          -Dnetworkaddress.cache.ttl=60
+          -Dcom.sun.media.jai.disableMediaLib=false
+    # ── Resource limits (VM454: 32 GB RAM, 8 vCPU) ──────────────────────────
+    # 24g gives GeoServer 18g heap while leaving 8g for OS, Docker, and GDAL.
+    mem_limit: 24g
+    mem_reservation: 12g    # soft guarantee — Docker scheduler prefers this node
+    memswap_limit: 24g       # no swap (prevents stop-the-world GC pauses from page faults)
+    cpus: "8.0"
+    pids_limit: 400          # guard against runaway thread creation
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536          # GeoServer opens many file handles for raster tiles
+    shm_size: 512m           # shared memory for JAI tile cache operations
+    security_opt:
+      - no-new-privileges:true   # prevent setuid privilege escalation
+    stop_grace_period: 60s   # allow GeoServer to flush caches + finish requests
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+        compress: "true"          # gzip-compress rotated logs to save VM disk space
+    # ── Healthcheck — uses lightweight OWS dispatcher probe ──────────────────
+    # GET /geoserver/ows (no params) returns a tiny dispatcher page in <100ms.
+    # This is far faster than downloading the full WMS GetCapabilities XML
+    # (which can be 300–500 KB and causes unnecessary I/O on every 30s check).
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null",
+             "http://localhost:8080/geoserver/ows"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 120s
+    labels:
+      <<: *labels-gsr
+      com.cvg.type:        "geoserver"
+      com.cvg.port:        "8080"
+      com.cvg.healthcheck: "/geoserver/ows"
+      com.cvg.description: "GeoServer 2.28.3 Raster — ImageMosaic, GeoTIFF, COG, WMS, WCS, WMTS"
+    networks:
+      - web
+      - internal
+
+  # ── Caddy (Reverse Proxy + TLS + Portal) ──────────────────────────────────
+  caddy:
+    <<: *restart
+    image: caddy:2-alpine
+    container_name: caddy-gsr
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"         # HTTP/3 (QUIC)
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/portal:/srv/portal:ro     # Proprietary data access portal
+      - caddy-data:/data
+      - caddy-config:/config
+      - /var/log/caddy:/var/log/caddy
+    depends_on:
+      geoserver-raster:
+        condition: service_healthy
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: "1.0"
+    stop_grace_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE         # required to bind :80 + :443 as non-root
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+        compress: "true"
+    labels:
+      <<: *labels-gsr
+      com.cvg.service: "caddy"
+      com.cvg.tier:    "proxy"
+    networks:
+      - web
+
+  # ── GeoServer Init (one-shot — runs on first deploy only) ─────────────────
+  # Sets admin password, service metadata, and proxy URL via REST API.
+  # Runs after geoserver-raster is healthy; writes sentinel to skip re-runs.
+  # Usage:  docker compose -f docker-compose.prod.yml run --rm geoserver-init
+  # OR add to up command:  --profile init
+  geoserver-init:
+    image: curlimages/curl:latest
+    container_name: geoserver-raster-init
+    profiles: ["init"]          # Only runs when explicitly requested: --profile init
+    user: "0"                   # Run as root to write sentinel to geoserver-data volume
+    volumes:
+      - ./scripts/geoserver-init.sh:/scripts/geoserver-init.sh:ro
+      - geoserver-data:/opt/geoserver/data_dir
+    environment:
+      - GEOSERVER_URL=http://geoserver-raster:8080/geoserver
+      - GEOSERVER_ADMIN_USER=admin
+      - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_ADMIN_PASSWORD:-}
+      - PROXY_BASE_URL=https://raster.cleargeo.tech/geoserver
+      - SKIP_IF_DONE=true
+    entrypoint: ["/bin/sh", "/scripts/geoserver-init.sh"]
+    depends_on:
+      geoserver-raster:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # ── Watchtower (nightly image pull + restart) ──────────────────────────────
+  watchtower:
+    <<: *restart
+    image: containrrr/watchtower:latest
+    container_name: watchtower-gsr
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=86400   # check daily
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_LABEL_ENABLE=false
+      - TZ=America/New_York
+      - DOCKER_API_VERSION=1.41          # Fix: watchtower client too old for Docker CE 29
+    mem_limit: 64m
+    cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+    labels:
+      <<: *labels-gsr
+      com.cvg.service: "watchtower"
+      com.cvg.tier:    "platform"
+    networks:
+      - internal
+
+networks:
+  web:
+    name: cvg-gsr-web
+    driver: bridge
+  internal:
+    name: cvg-gsr-internal
+    driver: bridge
+    internal: true
+
+volumes:
+  geoserver-data:
+    name: geoserver-raster-data       # GeoServer config, workspaces, styles — PERSIST
+  geoserver-gwc:
+    name: geoserver-raster-gwc        # GeoWebCache tile store (can be recreated)
+  caddy-data:
+    name: caddy-data-gsr              # TLS cert storage (PERSIST — avoid rate limits)
+  caddy-config:
+    name: caddy-config-gsr

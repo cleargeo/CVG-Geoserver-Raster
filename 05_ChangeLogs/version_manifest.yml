@@ -1,0 +1,160 @@
+# CVG GeoServer Raster — Version Manifest
+# Standard: Z:/9999/Cline_Global_Rules/Change Log Requirements.md
+# (c) Clearview Geographic LLC — All Rights Reserved
+
+project: CVG GeoServer Raster
+owner: Alex Zelenski, GISP
+organization: Clearview Geographic, LLC
+contact: azelenski@clearviewgeographic.com
+website: https://www.clearviewgeographic.com
+last_synced: "2026-03-22T06:58:00Z"
+project_version: v1.1.0
+change_id: 20260322-AZ-backload
+last_deployment_note: "Session 13 - 2026-03-22 - Backload Campaign priority established: BACKLOAD_PRIORITY.md created; ROADMAP.md updated with top-priority backload section; Z:2018-Z:2026 inventory + COG publish pipeline defined for both GeoServers"
+license: Proprietary -- CVG-ADF
+
+infrastructure:
+  proxmox_host: 10.10.10.56
+  proxmox_version: PVE 8.3.0
+  target_vm: cvg-geoserver-raster-01 (VMID 454, 10.10.10.203)
+  storage_pool: PE-Enclosure1 (ZFS)
+  cgps_share: "//10.10.10.100/cgps"
+  cgdp_share: "//10.10.10.100/cgdp"
+  network: 10.10.10.0/24 (vmbr0)
+  public_url: "https://raster.cleargeo.tech"
+
+releases:
+  - version: "unreleased"
+    date: "2026-03-22"
+    change_id: "20260322-AZ-backload"
+    summary: "Session 13 - Backload Campaign: BACKLOAD_PRIORITY.md created; ROADMAP.md updated with top-priority Z:2018-Z:2026 backload section; 5-phase workflow + layer naming conventions + publish pipeline defined"
+    breaking_changes: false
+  - version: "unreleased"
+    date: "2026-03-22"
+    change_id: "20260322-AZ-portal"
+    summary: "Session 12 portal enhancements: basemap switcher (CartoDB/OSM/ESRI Satellite/OpenTopo), opacity slider, live GetMap URL bar, WMS GetFeatureInfo pixel-value on click"
+    breaking_changes: false
+  - version: "1.1.0"
+    date: "2026-03-22"
+    change_id: "20260322-AZ-v1.1.0"
+    summary: "Caddyfile hardening; 4 new operational scripts (geoserver-init, health-check, backup, reset-password); HTTPS routing fixes; both GeoServer services verified live"
+    breaking_changes: false
+  - version: "1.0.0"
+    date: "2026-03-21"
+    change_id: "20260321-AZ-v1.0.0"
+    summary: "Initial release - multi-stage Dockerfile, plugin system, tini, container JVM, Caddy TLS, VM 454 infra"
+    breaking_changes: false
+
+versions:
+  BACKLOAD_PRIORITY.md:
+    version: v1.0.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Session 13 - TOP PRIORITY document: Z:2018-Z:2026 backload campaign plan; P1-P5 priority table; 5-phase workflow (Inventory/Categorize/Process/Publish/Organize); layer naming conventions; GeoServer workspace structure; master tracking register; scripts to create; immediate next actions; priority summary card"
+  ROADMAP.md:
+    version: v1.2.0-unreleased
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Session 13: TOP PRIORITY backload section inserted at top of roadmap; links to BACKLOAD_PRIORITY.md; priority table Z:2026 to Z:2018; 7-step immediate action list. Session 12: v0.3.0 complete with portal; Next Steps; Current Live Status table; full v0.4.0-v1.0.0 with curl examples; Integration Matrix; Session History"
+  Dockerfile:
+    version: v1.0.0
+    last_modified: "2026-03-21"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Multi-stage build (extract+runtime), tini PID1, plugin installation system, container-aware JVM, GDAL, CSRF/PROXY vars"
+  docker-compose.yml:
+    version: v1.0.0
+    last_modified: "2026-03-21"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Local dev stack - bound :8080, dev image tag, PROXY_BASE_URL=localhost"
+  docker-compose.prod.yml:
+    version: v1.0.0
+    last_modified: "2026-03-21"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Prod stack - mem_limit:8g, cpus:6.0, ulimits nofile:65536, service_healthy dep, GWC volume, json logging"
+  caddy/Caddyfile:
+    version: v1.1.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "v1.1.0: portal landing; /health probe; WPS LAN restriction; OGC API route; HTTP block for VM451; trusted_proxies; cache headers; CSP; handle_errors; /status ordering fixed"
+  caddy/portal/index.html:
+    version: v1.2.0-unreleased
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: deployed_live
+    notes: "Session 12: basemap switcher (CartoDB/OSM/ESRI Satellite/OpenTopo), opacity slider, live GetMap URL bar, WMS GetFeatureInfo pixel-value on click, scale bar added to map"
+  deploy_production.sh:
+    version: v1.0.0
+    last_modified: "2026-03-21"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Full VM454 Proxmox bootstrap: cloud-init, Docker, CIFS mounts, rsync, compose build+launch"
+  .dockerignore:
+    version: v1.0.0
+    last_modified: "2026-03-21"
+    author: Alex Zelenski
+    status: final_reviewed
+  .gitignore:
+    version: v1.0.0
+    last_modified: "2026-03-21"
+    author: Alex Zelenski
+    status: final_reviewed
+  README.md:
+    version: v1.0.0
+    last_modified: "2026-03-21"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Quick start, endpoints, data stores, infrastructure reference, security notes"
+  CHANGELOG.md:
+    version: v1.1.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "v1.1.0 section + [Unreleased] portal enhancement section (Session 12)"
+  scripts/control-flow.properties:
+    version: v1.0.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: ready_to_deploy
+    notes: "GeoServer control-flow plugin config: global=32, wms.getmap=16, wcs.getcoverage=4, user=6, timeout=120s; install to data_dir to activate"
+  scripts/geoserver-init.sh:
+    version: v1.1.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "First-run init: sets admin password, proxy URL, removes demo workspaces, creates cvg workspace; idempotent sentinel"
+  scripts/health-check.sh:
+    version: v1.1.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Comprehensive check: --local/--prod/--ip modes; containers; WMS+WCS+WMTS+GWC; LAN restriction; TLS cert expiry"
+  scripts/backup.sh:
+    version: v1.1.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "geoserver-raster-data volume backup via ephemeral alpine; timestamped tarballs; --dest/--keep; verify; manifest"
+  scripts/reset-password.sh:
+    version: v1.1.0
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Admin password reset via REST API; reads .env; auto-detect local/prod; verifies old+new password"
+  05_ChangeLogs/version_manifest.yml:
+    version: v1.3.0-unreleased
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Session 13: BACKLOAD_PRIORITY.md entry added; ROADMAP.md version bumped to v1.2.0-unreleased; new backload release entry added at top; change_id updated to 20260322-AZ-backload"
+  05_ChangeLogs/master_changelog.md:
+    version: v1.3.0-unreleased
+    last_modified: "2026-03-22"
+    author: Alex Zelenski
+    status: final_reviewed
+    notes: "Session 13: backload campaign [Unreleased] section added; deployment log entry added; re-encoded to clean UTF-8"

@@ -1,0 +1,62 @@
+# =============================================================================
+# CVG GeoServer Raster — LOCAL DEVELOPMENT Caddyfile (HTTP only, no TLS)
+# (c) Clearview Geographic, LLC — Proprietary
+# =============================================================================
+# Used by docker-compose.yml (dev) to serve the portal + proxy GeoServer.
+# Access:  http://localhost/           → CVG Raster Portal
+#          http://localhost/geoserver/ → GeoServer (also on :8080 direct)
+# =============================================================================
+
+{
+    # Disable automatic HTTPS for local dev — use plain HTTP on port 80
+    auto_https off
+}
+
+:80 {
+    # ── Portal landing page ────────────────────────────────────────────────────
+    handle / {
+        root * /srv/portal
+        file_server
+    }
+
+    handle /portal/* {
+        uri strip_prefix /portal
+        root * /srv/portal
+        file_server
+    }
+
+    # ── Admin UI — available locally (dev mode — no IP restriction) ───────────
+    # NOTE: In dev mode the admin UI is accessible without LAN restriction.
+    # In production the Caddyfile enforces 10.10.10.0/24 only.
+
+    # ── Proxy everything else to GeoServer ───────────────────────────────────
+    reverse_proxy geoserver-raster-dev:8080 {
+        header_up X-Forwarded-For   {remote_host}
+        header_up X-Forwarded-Proto http
+        header_up Host              {host}
+        flush_interval -1
+        transport http {
+            dial_timeout            30s
+            response_header_timeout 120s
+            read_timeout            300s
+            write_timeout           300s
+        }
+    }
+
+    # ── CORS for dev ──────────────────────────────────────────────────────────
+    @options { method OPTIONS }
+    handle @options {
+        header Access-Control-Allow-Origin  "*"
+        header Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, Accept"
+        respond 204
+    }
+    header Access-Control-Allow-Origin "*"
+
+    encode gzip
+
+    log {
+        output stdout
+        format console
+    }
+}

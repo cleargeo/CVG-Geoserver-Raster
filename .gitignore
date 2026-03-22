@@ -1,0 +1,59 @@
+# CVG GeoServer Raster — .gitignore
+# (c) Clearview Geographic LLC — All Rights Reserved
+
+# ── GeoServer data directory (persisted in Docker volume, not in git) ─────────
+data_dir/
+*.log
+logs/
+
+# ── Secrets ──────────────────────────────────────────────────────────────────
+.secrets/
+*.env
+*.env.*
+!.env.example
+
+# ── Large binary files (exceed GitHub 100MB limit) ───────────────────────────
+*.zip
+*.war
+*.jar
+*.gz
+*.tar
+*.tar.gz
+*.tgz
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+# docker-compose files and Dockerfile ARE tracked
+
+# ── OS artifacts ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+*.swp
+*.swo
+
+# ── Editors ──────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.iml
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+htmlcov/
+.coverage
+*.egg-info/
+dist/
+build/
+
+# ── Temp / scratch ───────────────────────────────────────────────────────────
+tmp/
+scratch/
+*.tmp
+*.bak
+.git_disabled/
+.venv/
