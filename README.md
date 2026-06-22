@@ -204,6 +204,7 @@ For remotely-hosted COG files (S3, Azure Blob, NOAA Digital Coast):
 
 | Project | Description |
 |---------|-------------|
+| `CVG_Neuron` | AI orchestration platform -- webhook receiver at port 8808 |
 | `CVG_Geoserver_Vector` | Sister vector WFS/WMS service (VM 455, vector.cleargeo.tech) |
 | `CVG_GeoServ_Processor` | Python pipeline: processes wizard outputs → publishes to GeoServer |
 | `CVG_Storm Surge Wizard` | Generates surge depth grids consumed by this service |
